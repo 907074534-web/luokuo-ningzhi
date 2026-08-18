@@ -2751,6 +2751,7 @@
         method,
         headers: {
           'Authorization': `token ${GH.token}`,
+          'Accept': 'application/vnd.github.v3+json',
           'Content-Type': 'application/json'
         }
       };
@@ -2785,12 +2786,12 @@
         const content = decodeURIComponent(escape(atob(fileData.content.replace(/\n/g, ''))));
         const meta = JSON.parse(content);
         if (!Array.isArray(meta)) return null;
-        // 先返回元数据，src 留空，稍后异步加载图片
+        // 返回元数据：有 filename 的照片异步加载，无 filename 的保留 src
         return meta.map(m => ({
-          src: '', // 异步加载
+          src: m.src || '',
           caption: m.caption || '美好瞬间',
           filename: m.filename || '',
-          loading: true
+          loading: !!m.filename
         }));
       } catch (e) {
         return null;
@@ -2873,8 +2874,14 @@
     async function refreshPhotos() {
       // 从 GitHub 加载最新数据（已加防缓存）
       const cloudPhotos = await loadCloudPhotos();
-      if (cloudPhotos && cloudPhotos.length > 0) {
-        photos = cloudPhotos;
+      if (cloudPhotos !== null) {
+        // 云端数据可用（即使为空数组也代表用户真实状态）
+        if (cloudPhotos.length > 0) {
+          photos = cloudPhotos;
+        } else {
+          // 云端为空 = 用户还没有照片，使用默认示例
+          photos = defaultPhotos.map(p => ({ ...p }));
+        }
       } else {
         // 云端不可用时，才用缓存兜底
         try {
