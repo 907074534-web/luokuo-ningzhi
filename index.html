@@ -2731,10 +2731,8 @@
         const resp = await fetch(url, {
           headers: {
             'Authorization': `token ${GH.token}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'Cache-Control': 'no-cache, no-store, must-revalidate'
-          },
-          cache: 'no-store'
+            'Accept': 'application/vnd.github.v3+json'
+          }
         });
         const data = await resp.json();
         if (data.content) {
@@ -2758,8 +2756,6 @@
       // GET 请求添加时间戳防缓存
       if (method === 'GET') {
         url += `?t=${Date.now()}`;
-        opts.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
-        opts.cache = 'no-store';
       }
       if (body) opts.body = JSON.stringify(body);
       const resp = await fetch(url, opts);
@@ -2775,15 +2771,13 @@
     // 从 GitHub 加载照片元数据（带缓存破坏，确保获取最新数据）
     async function loadCloudPhotos() {
       try {
-        // 添加时间戳参数 + no-cache 头，防止浏览器/CDN 返回旧缓存
+        // 添加时间戳参数防止浏览器缓存
         const bust = Date.now();
         const resp = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.metaPath}?t=${bust}`, {
           headers: {
             'Authorization': `token ${GH.token}`,
-            'Accept': 'application/vnd.github.v3+json',
-            'Cache-Control': 'no-cache, no-store, must-revalidate'
-          },
-          cache: 'no-store'
+            'Accept': 'application/vnd.github.v3+json'
+          }
         });
         if (!resp.ok) return null;
         const fileData = await resp.json();
