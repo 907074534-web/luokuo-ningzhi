@@ -2764,7 +2764,12 @@
       if (body) opts.body = JSON.stringify(body);
       const resp = await fetch(url, opts);
       if (method === 'DELETE') return resp;
-      return resp.json();
+      const data = await resp.json();
+      // 非 2xx 响应视为错误（但 404 在 GET 时是正常的"文件不存在"）
+      if (!resp.ok && !(method === 'GET' && resp.status === 404)) {
+        throw new Error(`GitHub API ${method} ${resp.status}: ${data.message || 'Unknown error'}`);
+      }
+      return data;
     }
 
     // 从 GitHub 加载照片元数据（带缓存破坏，确保获取最新数据）
@@ -2829,12 +2834,15 @@
           if (existing && existing.sha) sha = existing.sha;
         } catch (e) {}
 
-        await ghApi('PUT', GH.metaPath, {
+        const putBody = {
           message: `更新照片数据 ${new Date().toLocaleString('zh-CN')}`,
           content: content,
-          sha: sha,
           branch: GH.branch
-        });
+        };
+        // 仅当文件已存在时才传 sha（创建新文件时不能传 sha）
+        if (sha) putBody.sha = sha;
+
+        await ghApi('PUT', GH.metaPath, putBody);
       } catch (e) {
         showToast('云端同步失败，请稍后重试');
       }
