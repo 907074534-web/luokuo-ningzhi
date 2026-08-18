@@ -2724,12 +2724,17 @@
       return `https://raw.githubusercontent.com/${GH.owner}/${GH.repo}/${GH.branch}/${path}?t=${Date.now()}`;
     }
 
-    // 从私有仓库获取图片 base64 数据（带认证）
+    // 从私有仓库获取图片 base64 数据（带认证 + 防缓存）
     async function fetchPrivateImage(path) {
       try {
-        const url = `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${path}`;
+        const url = `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${path}?t=${Date.now()}`;
         const resp = await fetch(url, {
-          headers: { 'Authorization': `token ${GH.token}`, 'Accept': 'application/vnd.github.v3+json' }
+          headers: {
+            'Authorization': `token ${GH.token}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
+          },
+          cache: 'no-store'
         });
         const data = await resp.json();
         if (data.content) {
@@ -2739,9 +2744,9 @@
       return null;
     }
 
-    // GitHub Contents API 调用
+    // GitHub Contents API 调用（GET 请求带缓存破坏）
     async function ghApi(method, path, body) {
-      const url = `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${path}`;
+      let url = `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${path}`;
       const opts = {
         method,
         headers: {
@@ -2749,18 +2754,30 @@
           'Content-Type': 'application/json'
         }
       };
+      // GET 请求添加时间戳防缓存
+      if (method === 'GET') {
+        url += `?t=${Date.now()}`;
+        opts.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+        opts.cache = 'no-store';
+      }
       if (body) opts.body = JSON.stringify(body);
       const resp = await fetch(url, opts);
       if (method === 'DELETE') return resp;
       return resp.json();
     }
 
-    // 从 GitHub 加载照片元数据
+    // 从 GitHub 加载照片元数据（带缓存破坏，确保获取最新数据）
     async function loadCloudPhotos() {
       try {
-        // 通过 API 获取元数据（带认证）
-        const resp = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.metaPath}`, {
-          headers: { 'Authorization': `token ${GH.token}`, 'Accept': 'application/vnd.github.v3+json' }
+        // 添加时间戳参数 + no-cache 头，防止浏览器/CDN 返回旧缓存
+        const bust = Date.now();
+        const resp = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.metaPath}?t=${bust}`, {
+          headers: {
+            'Authorization': `token ${GH.token}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate'
+          },
+          cache: 'no-store'
         });
         if (!resp.ok) return null;
         const fileData = await resp.json();
@@ -2852,23 +2869,23 @@
       catch (e) {}
     }
 
-    // 初始化：优先从 GitHub 加载，失败则用缓存或默认
+    // 初始化：优先从 GitHub 加载最新数据，缓存仅用于离线兜底
     async function refreshPhotos() {
-      // 先用缓存快速渲染
-      try {
-        const cached = localStorage.getItem(STORAGE_KEY);
-        if (cached) {
-          photos = JSON.parse(cached);
-          renderPhotoWall();
-        }
-      } catch (e) {}
-
-      // 从 GitHub 加载最新数据
+      // 从 GitHub 加载最新数据（已加防缓存）
       const cloudPhotos = await loadCloudPhotos();
       if (cloudPhotos && cloudPhotos.length > 0) {
         photos = cloudPhotos;
-      } else if (photos.length === 0) {
-        photos = defaultPhotos.map(p => ({ ...p }));
+      } else {
+        // 云端不可用时，才用缓存兜底
+        try {
+          const cached = localStorage.getItem(STORAGE_KEY);
+          if (cached) {
+            photos = JSON.parse(cached);
+          }
+        } catch (e) {}
+        if (photos.length === 0) {
+          photos = defaultPhotos.map(p => ({ ...p }));
+        }
       }
       cachePhotos();
       renderPhotoWall();
@@ -2884,6 +2901,13 @@
 
     // 启动：异步从 GitHub 加载照片
     refreshPhotos();
+
+    // 当用户切换回此标签页时，自动刷新照片数据（同步其他设备的删除/添加操作）
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        refreshPhotos();
+      }
+    });
 
     // ============================================
     //  Toast
