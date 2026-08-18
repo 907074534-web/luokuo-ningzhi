@@ -387,13 +387,10 @@
     .confirm-actions .btn-confirm-delete { background: #E8A0A0; color: var(--white); }
     .confirm-actions .btn-confirm-delete:hover { background: #D88888; box-shadow: 0 4px 15px rgba(200, 120, 120, 0.4); }
 
-    /* Toast */
-    .toast {
-
     /* ====== 密码锁屏 ====== */
     .lock-screen {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-      z-index: 9999; display: flex; align-items: center; justify-content: center;
+      z-index: 100000 !important; display: flex; align-items: center; justify-content: center;
       background: linear-gradient(135deg, #FDF9F3 0%, #F5EDE0 50%, #F5E0DC 100%);
       transition: opacity 0.6s ease, visibility 0.6s ease;
     }
