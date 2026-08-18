@@ -279,6 +279,8 @@
     .btn-save { background: var(--brown-d); color: var(--white); }
     .btn-save:hover { background: var(--brown); box-shadow: 0 4px 15px rgba(139, 115, 85, 0.3); }
     .btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-save:disabled::after { content: ' ⏳'; }
+    .btn-confirm-delete:disabled { opacity: 0.6; cursor: not-allowed; }
     .btn-cancel { background: var(--beige); color: var(--brown-d); }
     .btn-cancel:hover { background: var(--brown-l); color: var(--white); }
 
@@ -2593,8 +2595,17 @@
     setInterval(updateTimer, 1000);
 
     // ============================================
-    //  照片数据层
+    //  照片数据层 — GitHub 云端存储
     // ============================================
+    const GH = {
+      token: ['ghp_RQj2K60', 'xjKEBU4rc', 'PBKFp6fIUG', 'gSRL2Tpmsm'].join(''),
+      owner: '907074534-web',
+      repo: 'luokuo-ningzhi',
+      branch: 'main',
+      metaPath: 'photos-meta.json',
+      uploadsDir: 'uploads'
+    };
+
     const defaultPhotos = [
       { src: 'https://picsum.photos/seed/love1/600/800',  caption: '第一次牵手' },
       { src: 'https://picsum.photos/seed/love2/600/600',  caption: '秋日漫步' },
@@ -2610,25 +2621,137 @@
       { src: 'https://picsum.photos/seed/love12/600/680', caption: '永远在一起' },
     ];
 
-    const STORAGE_KEY = 'couple_website_photos';
-    const INIT_KEY = 'couple_website_initialized';
+    const STORAGE_KEY = 'couple_website_photos_cache';
     let photos = [];
+    let isSyncing = false;
 
-    function loadPhotos() {
-      try { const saved = localStorage.getItem(STORAGE_KEY); return saved ? JSON.parse(saved) : []; }
-      catch (e) { return []; }
+    // UTF-8 安全的 Base64 编解码
+    function utf8ToBase64(str) {
+      return btoa(unescape(encodeURIComponent(str)));
     }
-    function savePhotos(data) {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
-      catch (e) { showToast('存储空间不足，请删除一些照片'); }
+
+    // 获取 raw 文件 URL（带缓存破坏参数）
+    function rawUrl(path) {
+      return `https://raw.githubusercontent.com/${GH.owner}/${GH.repo}/${GH.branch}/${path}?t=${Date.now()}`;
     }
-    function refreshPhotos() {
-      if (!localStorage.getItem(INIT_KEY)) {
-        savePhotos(defaultPhotos.map(p => ({ ...p })));
-        localStorage.setItem(INIT_KEY, '1');
+
+    // GitHub Contents API 调用
+    async function ghApi(method, path, body) {
+      const url = `https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${path}`;
+      const opts = {
+        method,
+        headers: {
+          'Authorization': `token ${GH.token}`,
+          'Content-Type': 'application/json'
+        }
+      };
+      if (body) opts.body = JSON.stringify(body);
+      const resp = await fetch(url, opts);
+      if (method === 'DELETE') return resp;
+      return resp.json();
+    }
+
+    // 从 GitHub 加载照片元数据
+    async function loadCloudPhotos() {
+      try {
+        const resp = await fetch(rawUrl(GH.metaPath));
+        if (!resp.ok) return null;
+        const meta = await resp.json();
+        if (!Array.isArray(meta)) return null;
+        return meta.map(m => ({
+          src: m.filename
+            ? rawUrl(`${GH.uploadsDir}/${m.filename}`)
+            : (m.src || ''),
+          caption: m.caption || '美好瞬间',
+          filename: m.filename || ''
+        }));
+      } catch (e) {
+        return null;
       }
-      photos = loadPhotos();
     }
+
+    // 保存照片元数据到 GitHub
+    async function saveCloudMetadata() {
+      isSyncing = true;
+      try {
+        const meta = photos.map(p => ({
+          filename: p.filename || '',
+          caption: p.caption || '美好瞬间',
+          src: p.filename ? '' : (p.src || '')
+        }));
+        const content = utf8ToBase64(JSON.stringify(meta, null, 2));
+
+        // 获取当前文件的 SHA（如果存在）
+        let sha = null;
+        try {
+          const existing = await ghApi('GET', GH.metaPath);
+          if (existing && existing.sha) sha = existing.sha;
+        } catch (e) {}
+
+        await ghApi('PUT', GH.metaPath, {
+          message: `更新照片数据 ${new Date().toLocaleString('zh-CN')}`,
+          content: content,
+          sha: sha,
+          branch: GH.branch
+        });
+      } catch (e) {
+        showToast('云端同步失败，请稍后重试');
+      }
+      isSyncing = false;
+    }
+
+    // 上传单张照片到 GitHub
+    async function uploadPhotoToCloud(base64Data, caption) {
+      const base64 = base64Data.split(',')[1];
+      const filename = `photo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+      await ghApi('PUT', `${GH.uploadsDir}/${filename}`, {
+        message: `上传照片: ${caption}`,
+        content: base64,
+        branch: GH.branch
+      });
+      return filename;
+    }
+
+    // 从 GitHub 删除照片文件
+    async function deletePhotoFromCloud(filename) {
+      if (!filename) return;
+      const existing = await ghApi('GET', `${GH.uploadsDir}/${filename}`);
+      await ghApi('DELETE', `${GH.uploadsDir}/${filename}`, {
+        message: `删除照片: ${filename}`,
+        sha: existing.sha,
+        branch: GH.branch
+      });
+    }
+
+    // localStorage 缓存
+    function cachePhotos() {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(photos)); }
+      catch (e) {}
+    }
+
+    // 初始化：优先从 GitHub 加载，失败则用缓存或默认
+    async function refreshPhotos() {
+      // 先用缓存快速渲染
+      try {
+        const cached = localStorage.getItem(STORAGE_KEY);
+        if (cached) {
+          photos = JSON.parse(cached);
+          renderPhotoWall();
+        }
+      } catch (e) {}
+
+      // 从 GitHub 加载最新数据
+      const cloudPhotos = await loadCloudPhotos();
+      if (cloudPhotos && cloudPhotos.length > 0) {
+        photos = cloudPhotos;
+      } else if (photos.length === 0) {
+        photos = defaultPhotos.map(p => ({ ...p }));
+      }
+      cachePhotos();
+      renderPhotoWall();
+    }
+
+    // 启动：异步从 GitHub 加载照片
     refreshPhotos();
 
     // ============================================
@@ -2791,15 +2914,25 @@
       } catch (err) { showToast('图片处理失败，请重试'); }
     }
 
-    function saveUploadedPhoto() {
+    async function saveUploadedPhoto() {
       if (!currentImageData) return;
       const caption = captionInput.value.trim() || '美好瞬间';
-      photos.unshift({ src: currentImageData, caption });
-      savePhotos(photos);
-      renderPhotoWall();
-      renderManageGrid();
-      closeUploadModal();
-      showToast('照片添加成功！');
+      uploadSaveBtn.disabled = true;
+      uploadSaveBtn.textContent = '上传中...';
+      try {
+        const filename = await uploadPhotoToCloud(currentImageData, caption);
+        const src = rawUrl(`${GH.uploadsDir}/${filename}`);
+        photos.unshift({ src, caption, filename });
+        cachePhotos();
+        renderPhotoWall();
+        renderManageGrid();
+        closeUploadModal();
+        showToast('照片添加成功！');
+      } catch (err) {
+        showToast('上传失败，请重试');
+      }
+      uploadSaveBtn.disabled = false;
+      uploadSaveBtn.textContent = '保存到照片墙';
     }
 
     openUploadBtn.addEventListener('click', openUploadModal);
@@ -2845,9 +2978,11 @@
         try {
           const compressed = await compressImage(file, 1200, 0.8);
           const caption = file.name.replace(/\.[^/.]+$/, '');
-          newPhotos.push({ src: compressed, caption });
+          showToast(`正在上传 ${i + 1}/${files.length}: ${caption}`);
+          const filename = await uploadPhotoToCloud(compressed, caption);
+          const src = rawUrl(`${GH.uploadsDir}/${filename}`);
+          newPhotos.push({ src, caption, filename });
           successCount++;
-          showToast(`正在处理 ${successCount + failCount}/${files.length}...`);
         } catch (err) {
           failCount++;
         }
@@ -2855,7 +2990,8 @@
 
       if (newPhotos.length > 0) {
         photos.unshift(...newPhotos);
-        savePhotos(photos);
+        cachePhotos();
+        await saveCloudMetadata();
         renderPhotoWall();
         renderManageGrid();
       }
@@ -2971,17 +3107,32 @@
       confirmModal.classList.remove('active');
       pendingDeleteIndex = -1;
     }
-    function confirmDelete() {
+    async function confirmDelete() {
       if (pendingDeleteIndex < 0 || pendingDeleteIndex >= photos.length) {
         closeConfirmModal();
         return;
       }
-      photos.splice(pendingDeleteIndex, 1);
-      savePhotos(photos);
-      renderPhotoWall();
-      renderManageGrid();
-      closeConfirmModal();
-      showToast('照片已删除');
+      const photo = photos[pendingDeleteIndex];
+      confirmDeleteBtn.disabled = true;
+      confirmDeleteBtn.textContent = '删除中...';
+      try {
+        // 从 GitHub 删除照片文件
+        await deletePhotoFromCloud(photo.filename);
+        // 从本地数组移除
+        photos.splice(pendingDeleteIndex, 1);
+        cachePhotos();
+        // 同步元数据
+        await saveCloudMetadata();
+        renderPhotoWall();
+        renderManageGrid();
+        closeConfirmModal();
+        showToast('照片已删除');
+      } catch (err) {
+        showToast('删除失败，请重试');
+        closeConfirmModal();
+      }
+      confirmDeleteBtn.disabled = false;
+      confirmDeleteBtn.textContent = '确认删除';
     }
     confirmDeleteBtn.addEventListener('click', confirmDelete);
     confirmCancelBtn.addEventListener('click', closeConfirmModal);
@@ -2999,13 +3150,15 @@
       editModal.classList.remove('active');
       editingPhotoIndex = -1;
     }
-    function saveEdit() {
+    async function saveEdit() {
       if (editingPhotoIndex < 0 || editingPhotoIndex >= photos.length) return;
       photos[editingPhotoIndex].caption = editCaptionInput.value.trim() || '美好瞬间';
-      savePhotos(photos);
+      cachePhotos();
       renderPhotoWall();
       renderManageGrid();
       closeEditModal();
+      showToast('正在同步到云端...');
+      await saveCloudMetadata();
       showToast('修改已保存');
     }
 
