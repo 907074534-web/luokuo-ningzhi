@@ -4028,6 +4028,34 @@
       'rgba(212, 165, 160, 0.4)', 'rgba(184, 167, 142, 0.35)',
     ];
 
+    // 减少粒子数量：移动端 10，桌面端 20
+    const particleCount = window.innerWidth < 768 ? 10 : 20;
+
+    // 预渲染粒子精灵到离屏 canvas（避免每帧重复绘制贝塞尔曲线）
+    function createSprite(color, size, isHeart) {
+      const pad = 4;
+      const cv = document.createElement('canvas');
+      cv.width = cv.height = size + pad * 2;
+      const c = cv.getContext('2d');
+      c.translate(cv.width / 2, cv.height / 2);
+      c.fillStyle = color;
+      if (isHeart) {
+        const s = size * 0.5;
+        c.beginPath();
+        c.moveTo(0, s * 0.3);
+        c.bezierCurveTo(0, 0, -s, 0, -s, s * 0.3);
+        c.bezierCurveTo(-s, s * 0.6, 0, s * 0.8, 0, s);
+        c.bezierCurveTo(0, s * 0.8, s, s * 0.6, s, s * 0.3);
+        c.bezierCurveTo(s, 0, 0, 0, 0, s * 0.3);
+        c.fill();
+      } else {
+        c.beginPath();
+        c.arc(0, 0, size * 0.4, 0, Math.PI * 2);
+        c.fill();
+      }
+      return cv;
+    }
+
     class Particle {
       constructor() { this.reset(true); }
       reset(initial = false) {
@@ -4041,9 +4069,11 @@
         this.swing = Math.random() * 1.5 + 0.3;
         this.swingSpeed = Math.random() * 0.015 + 0.008;
         this.swingOffset = Math.random() * Math.PI * 2;
-        this.color = particleColors[Math.floor(Math.random() * particleColors.length)];
+        const colorIdx = Math.floor(Math.random() * particleColors.length);
+        this.color = particleColors[colorIdx];
         this.opacity = Math.random() * 0.4 + 0.3;
         this.isHeart = Math.random() < 0.3;
+        this.sprite = createSprite(this.color, this.size, this.isHeart);
       }
       update(time) {
         this.y += this.speedY;
@@ -4055,43 +4085,21 @@
       }
       draw() {
         ctx.save();
+        ctx.globalAlpha = this.opacity;
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
-        ctx.globalAlpha = this.opacity;
-        ctx.fillStyle = this.color;
-        if (this.isHeart) {
-          const s = this.size * 0.5;
-          ctx.beginPath();
-          ctx.moveTo(0, s * 0.3);
-          ctx.bezierCurveTo(0, 0, -s, 0, -s, s * 0.3);
-          ctx.bezierCurveTo(-s, s * 0.6, 0, s * 0.8, 0, s);
-          ctx.bezierCurveTo(0, s * 0.8, s, s * 0.6, s, s * 0.3);
-          ctx.bezierCurveTo(s, 0, 0, 0, 0, s * 0.3);
-          ctx.fill();
-        } else {
-          ctx.beginPath();
-          ctx.arc(0, 0, this.size * 0.4, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        ctx.drawImage(this.sprite, -this.sprite.width / 2, -this.sprite.height / 2);
         ctx.restore();
       }
     }
 
-    // 减少粒子数量：移动端 15，桌面端 30
-    const particleCount = window.innerWidth < 768 ? 15 : 30;
     const particles = [];
     for (let i = 0; i < particleCount; i++) particles.push(new Particle());
 
-    // 鼠标交互：rAF 节流，避免高频 mousemove 触发
+    // 鼠标交互：直接更新坐标，rAF 循环中读取
     let mouseX = -1000, mouseY = -1000;
-    let mouseDirty = false;
-    let mouseRafQueued = false;
     window.addEventListener('mousemove', (e) => {
       mouseX = e.clientX; mouseY = e.clientY;
-      if (!mouseRafQueued) {
-        mouseRafQueued = true;
-        requestAnimationFrame(() => { mouseRafQueued = false; });
-      }
     });
     window.addEventListener('mouseleave', () => { mouseX = -1000; mouseY = -1000; });
 
@@ -4112,27 +4120,33 @@
     const INTERACT_RADIUS = 100;
     const INTERACT_RADIUS_SQ = INTERACT_RADIUS * INTERACT_RADIUS;
 
+    // 降帧到 ~30fps，减少主线程 CPU 占用，避免音频卡顿
     let frameTime = 0;
-    function animateParticles() {
+    let lastParticleFrame = 0;
+    function animateParticles(timestamp) {
       if (!particlesRunning) return;
-      ctx.clearRect(0, 0, W, H);
-      frameTime += 0.016;
-      for (let i = 0, len = particles.length; i < len; i++) {
-        const p = particles[i];
-        const dx = p.x - mouseX, dy = p.y - mouseY;
-        const distSq = dx * dx + dy * dy;
-        if (distSq < INTERACT_RADIUS_SQ) {
-          const dist = Math.sqrt(distSq);
-          const force = (INTERACT_RADIUS - dist) / INTERACT_RADIUS;
-          p.x += (dx / dist) * force * 2;
-          p.y += (dy / dist) * force * 2;
+      // 每 2 帧渲染一次（~30fps）
+      if (timestamp - lastParticleFrame >= 33) {
+        lastParticleFrame = timestamp;
+        ctx.clearRect(0, 0, W, H);
+        frameTime += 0.033;
+        for (let i = 0, len = particles.length; i < len; i++) {
+          const p = particles[i];
+          const dx = p.x - mouseX, dy = p.y - mouseY;
+          const distSq = dx * dx + dy * dy;
+          if (distSq < INTERACT_RADIUS_SQ) {
+            const dist = Math.sqrt(distSq);
+            const force = (INTERACT_RADIUS - dist) / INTERACT_RADIUS;
+            p.x += (dx / dist) * force * 2;
+            p.y += (dy / dist) * force * 2;
+          }
+          p.update(frameTime);
+          p.draw();
         }
-        p.update(frameTime);
-        p.draw();
       }
       requestAnimationFrame(animateParticles);
     }
-    animateParticles();
+    animateParticles(0);
   </script>
 
 
