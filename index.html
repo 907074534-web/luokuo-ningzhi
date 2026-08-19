@@ -339,6 +339,65 @@
     .manage-empty { text-align: center; padding: 3rem 1rem; color: var(--brown-l); }
     .manage-empty p { font-size: 0.88rem; }
 
+    /* ====== 多选删除模式 ====== */
+    .manage-select-btn {
+      display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.82rem; cursor: pointer;
+      background: #F5DCDC; color: #C47878; border: 2px solid #E8A0A0; transition: all 0.3s ease;
+      font-family: 'Noto Sans SC', sans-serif; font-weight: 500;
+    }
+    .manage-select-btn:hover { background: #E8A0A0; color: var(--white); }
+    .manage-select-btn.active { background: #C47878; color: var(--white); border-color: #C47878; }
+    .manage-select-btn svg { width: 14px; height: 14px; }
+
+    /* 多选工具栏（替换普通工具栏） */
+    .manage-batch-toolbar {
+      display: none; align-items: center; gap: 0.6rem; margin-bottom: 1.2rem; flex-wrap: wrap;
+      padding: 0.8rem 1rem; background: var(--beige); border-radius: 14px; border: 2px solid #E8C8C8;
+    }
+    .manage-batch-toolbar.active { display: flex; }
+    .manage-batch-toolbar .batch-info { font-size: 0.85rem; color: var(--brown-d); font-weight: 500; }
+    .manage-batch-toolbar .batch-info span { color: #C47878; font-weight: 700; font-size: 1rem; }
+    .batch-select-all-btn {
+      padding: 0.35rem 0.9rem; border-radius: 16px; font-size: 0.78rem; cursor: pointer; border: 2px solid var(--brown-l);
+      background: var(--white); color: var(--brown-d); transition: all 0.3s; font-family: 'Noto Sans SC', sans-serif;
+    }
+    .batch-select-all-btn:hover { border-color: var(--brown-d); background: var(--beige); }
+    .batch-delete-btn {
+      display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.82rem; cursor: pointer;
+      background: #C47878; color: var(--white); border: 2px solid #C47878; transition: all 0.3s; margin-left: auto;
+      font-family: 'Noto Sans SC', sans-serif; font-weight: 500;
+    }
+    .batch-delete-btn:hover { background: #B06868; border-color: #B06868; }
+    .batch-delete-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .batch-cancel-btn {
+      padding: 0.4rem 1rem; border-radius: 20px; font-size: 0.82rem; cursor: pointer;
+      background: var(--white); color: var(--brown-d); border: 2px solid var(--beige); transition: all 0.3s;
+      font-family: 'Noto Sans SC', sans-serif; font-weight: 500;
+    }
+    .batch-cancel-btn:hover { border-color: var(--brown-l); }
+
+    /* 多选模式下卡片样式 */
+    .manage-card.selectable { cursor: pointer; }
+    .manage-card.selectable:hover { border-color: #E8C8C8; }
+    .manage-card.selected { border-color: #C47878; box-shadow: 0 0 0 3px rgba(196, 120, 120, 0.2); }
+    .manage-card.selected .manage-card-img { opacity: 0.7; }
+
+    /* 复选框覆盖在卡片图片上 */
+    .manage-card-checkbox {
+      position: absolute; top: 8px; right: 8px; width: 26px; height: 26px;
+      border-radius: 50%; border: 2.5px solid var(--white); background: rgba(255,255,255,0.5);
+      display: flex; align-items: center; justify-content: center; z-index: 5;
+      transition: all 0.3s ease; pointer-events: none;
+    }
+    .manage-card.selectable .manage-card-checkbox { display: flex; }
+    .manage-card:not(.selectable) .manage-card-checkbox { display: none; }
+    .manage-card.selected .manage-card-checkbox { background: #C47878; border-color: #C47878; }
+    .manage-card-checkbox svg { width: 14px; height: 14px; color: var(--white); opacity: 0; transition: opacity 0.2s; }
+    .manage-card.selected .manage-card-checkbox svg { opacity: 1; }
+
+    /* 多选模式下隐藏操作按钮 */
+    .manage-card.selectable .manage-card-actions { display: none; }
+
     /* ====== 编辑弹窗 ====== */
     .edit-modal {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(139, 115, 85, 0.4);
@@ -2532,7 +2591,25 @@
           </svg>
           批量上传
         </button>
+        <button class="manage-select-btn" id="openSelectBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+          </svg>
+          多选
+        </button>
         <input type="file" id="batchFileInput" accept="image/*,.livp,.heic,.heif" multiple hidden>
+      </div>
+      <!-- 多选删除工具栏 -->
+      <div class="manage-batch-toolbar" id="batchToolbar">
+        <div class="batch-info">已选 <span id="selectedCount">0</span> 张</div>
+        <button class="batch-select-all-btn" id="selectAllBtn">全选</button>
+        <button class="batch-cancel-btn" id="cancelSelectBtn">取消</button>
+        <button class="batch-delete-btn" id="batchDeleteBtn" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;">
+            <polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+          删除所选
+        </button>
       </div>
       <div class="manage-grid" id="manageGrid"></div>
       <div class="manage-empty" id="manageEmpty" style="display:none;">
@@ -3342,6 +3419,10 @@
     const manageEmpty = document.getElementById('manageEmpty');
     let editingPhotoIndex = -1;
 
+    // ====== 多选模式状态 ======
+    let isSelectMode = false;
+    let selectedSet = new Set(); // 存储选中的索引
+
     const editModal = document.getElementById('editModal');
     const editCloseBtn = document.getElementById('editCloseBtn');
     const editCancelBtn = document.getElementById('editCancelBtn');
@@ -3349,14 +3430,79 @@
     const editPreviewImg = document.getElementById('editPreviewImg');
     const editCaptionInput = document.getElementById('editCaptionInput');
 
+    // 多选模式相关元素
+    const openSelectBtn = document.getElementById('openSelectBtn');
+    const batchToolbar = document.getElementById('batchToolbar');
+    const selectedCountEl = document.getElementById('selectedCount');
+    const selectAllBtn = document.getElementById('selectAllBtn');
+    const cancelSelectBtn = document.getElementById('cancelSelectBtn');
+    const batchDeleteBtn = document.getElementById('batchDeleteBtn');
+
     function openManageModal() {
       manageModal.classList.add('active');
       document.body.style.overflow = 'hidden';
+      exitSelectMode();
       renderManageGrid();
     }
     function closeManageModal() {
       manageModal.classList.remove('active');
       document.body.style.overflow = '';
+      exitSelectMode();
+    }
+
+    // 进入多选模式
+    function enterSelectMode() {
+      isSelectMode = true;
+      selectedSet.clear();
+      openSelectBtn.classList.add('active');
+      openSelectBtn.querySelector('svg').nextSibling.textContent = ' 取消多选';
+      batchToolbar.classList.add('active');
+      renderManageGrid();
+      updateSelectUI();
+    }
+
+    // 退出多选模式
+    function exitSelectMode() {
+      isSelectMode = false;
+      selectedSet.clear();
+      openSelectBtn.classList.remove('active');
+      openSelectBtn.querySelector('svg').nextSibling.textContent = ' 多选';
+      batchToolbar.classList.remove('active');
+      renderManageGrid();
+    }
+
+    // 切换多选模式
+    function toggleSelectMode() {
+      if (isSelectMode) exitSelectMode();
+      else enterSelectMode();
+    }
+
+    // 更新多选 UI
+    function updateSelectUI() {
+      const count = selectedSet.size;
+      selectedCountEl.textContent = count;
+      batchDeleteBtn.disabled = count === 0;
+      // 更新全选按钮文字
+      selectAllBtn.textContent = (count === photos.length && count > 0) ? '取消全选' : '全选';
+    }
+
+    // 全选 / 取消全选
+    function toggleSelectAll() {
+      if (selectedSet.size === photos.length) {
+        selectedSet.clear();
+      } else {
+        photos.forEach((_, idx) => selectedSet.add(idx));
+      }
+      renderManageGrid();
+      updateSelectUI();
+    }
+
+    // 切换单个卡片选中状态
+    function toggleSelectCard(idx) {
+      if (selectedSet.has(idx)) selectedSet.delete(idx);
+      else selectedSet.add(idx);
+      renderManageGrid();
+      updateSelectUI();
     }
 
     function renderManageGrid() {
@@ -3372,8 +3518,15 @@
 
       photos.forEach((photo, idx) => {
         const card = document.createElement('div');
-        card.className = 'manage-card';
+        const isSelected = selectedSet.has(idx);
+        card.className = 'manage-card' + (isSelectMode ? ' selectable' : '') + (isSelected ? ' selected' : '');
+        card.dataset.idx = idx;
         card.innerHTML = `
+          <div class="manage-card-checkbox">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
           <img class="manage-card-img" src="${photo.src}" alt="${photo.caption}" data-action="preview" data-idx="${idx}">
           <div class="manage-card-info">
             <div class="manage-card-title">${photo.caption}</div>
@@ -3384,25 +3537,91 @@
             <button class="manage-card-btn delete" data-action="delete" data-idx="${idx}">删除</button>
           </div>
         `;
+        // 多选模式下点击卡片切换选中
+        if (isSelectMode) {
+          card.addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleSelectCard(idx);
+          });
+        } else {
+          // 普通模式下保留原有操作
+          card.querySelectorAll('[data-action]').forEach(el => {
+            el.addEventListener('click', (e) => {
+              e.stopPropagation();
+              const action = el.dataset.action;
+              const actionIdx = parseInt(el.dataset.idx);
+              if (action === 'preview') {
+                closeManageModal();
+                setTimeout(() => openLightbox(actionIdx), 200);
+              } else if (action === 'edit') {
+                openEditModal(actionIdx);
+              } else if (action === 'delete') {
+                deletePhotoFromManage(actionIdx);
+              }
+            });
+          });
+        }
         manageGrid.appendChild(card);
       });
-
-      manageGrid.querySelectorAll('[data-action]').forEach(el => {
-        el.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const action = el.dataset.action;
-          const idx = parseInt(el.dataset.idx);
-          if (action === 'preview') {
-            closeManageModal();
-            setTimeout(() => openLightbox(idx), 200);
-          } else if (action === 'edit') {
-            openEditModal(idx);
-          } else if (action === 'delete') {
-            deletePhotoFromManage(idx);
-          }
-        });
-      });
     }
+
+    // ====== 多选模式事件绑定 ======
+    openSelectBtn.addEventListener('click', toggleSelectMode);
+    selectAllBtn.addEventListener('click', toggleSelectAll);
+    cancelSelectBtn.addEventListener('click', exitSelectMode);
+
+    // 批量删除
+    async function batchDeleteSelected() {
+      if (selectedSet.size === 0) return;
+      const count = selectedSet.size;
+      const photoNames = Array.from(selectedSet).map(i => photos[i]?.caption).filter(Boolean);
+      const nameStr = photoNames.length <= 3
+        ? photoNames.join('、')
+        : photoNames.slice(0, 3).join('、') + ` 等 ${count} 张`;
+      confirmDesc.textContent = `确定要删除「${nameStr}」吗？共 ${count} 张照片，删除后无法恢复。`;
+      confirmModal.classList.add('active');
+      pendingBatchDelete = true;
+    }
+
+    async function confirmBatchDelete() {
+      const indices = Array.from(selectedSet).sort((a, b) => b - a); // 从大到小排序，避免删除时索引偏移
+      confirmDeleteBtn.disabled = true;
+      confirmDeleteBtn.textContent = `删除中 (0/${indices.length})...`;
+      let successCount = 0;
+      let failCount = 0;
+      for (let i = 0; i < indices.length; i++) {
+        const idx = indices[i];
+        const photo = photos[idx];
+        try {
+          if (photo.filename) await deletePhotoFromCloud(photo.filename);
+          photos.splice(idx, 1);
+          successCount++;
+        } catch (err) {
+          failCount++;
+        }
+        confirmDeleteBtn.textContent = `删除中 (${i + 1}/${indices.length})...`;
+      }
+      try { await saveCloudMetadata(); } catch (e) {}
+      cachePhotos();
+      renderPhotoWall();
+      selectedSet.clear();
+      isSelectMode = false;
+      openSelectBtn.classList.remove('active');
+      openSelectBtn.querySelector('svg').nextSibling.textContent = ' 多选';
+      batchToolbar.classList.remove('active');
+      renderManageGrid();
+      closeConfirmModal();
+      confirmDeleteBtn.disabled = false;
+      confirmDeleteBtn.textContent = '确认删除';
+      pendingBatchDelete = false;
+      if (failCount > 0) {
+        showToast(`删除完成：成功 ${successCount} 张，失败 ${failCount} 张`);
+      } else {
+        showToast(`已删除 ${successCount} 张照片`);
+      }
+    }
+
+    batchDeleteBtn.addEventListener('click', batchDeleteSelected);
 
     // ====== 确认删除弹窗逻辑 ======
     const confirmModal = document.getElementById('confirmModal');
@@ -3410,10 +3629,12 @@
     const confirmCancelBtn = document.getElementById('confirmCancelBtn');
     const confirmDesc = document.getElementById('confirmDesc');
     let pendingDeleteIndex = -1;
+    let pendingBatchDelete = false;
 
     function deletePhotoFromManage(index) {
       if (index < 0 || index >= photos.length) return;
       pendingDeleteIndex = index;
+      pendingBatchDelete = false;
       const photo = photos[index];
       confirmDesc.textContent = `确定要删除「${photo.caption}」吗？删除后无法恢复。`;
       confirmModal.classList.add('active');
@@ -3421,8 +3642,15 @@
     function closeConfirmModal() {
       confirmModal.classList.remove('active');
       pendingDeleteIndex = -1;
+      pendingBatchDelete = false;
     }
     async function confirmDelete() {
+      // 批量删除
+      if (pendingBatchDelete) {
+        await confirmBatchDelete();
+        return;
+      }
+      // 单个删除
       if (pendingDeleteIndex < 0 || pendingDeleteIndex >= photos.length) {
         closeConfirmModal();
         return;
@@ -3490,6 +3718,7 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         if (confirmModal.classList.contains('active')) closeConfirmModal();
+        else if (isSelectMode) exitSelectMode();
         else if (uploadModal.classList.contains('active')) closeUploadModal();
         else if (editModal.classList.contains('active')) closeEditModal();
         else if (manageModal.classList.contains('active')) closeManageModal();
