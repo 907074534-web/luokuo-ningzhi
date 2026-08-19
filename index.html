@@ -2863,15 +2863,34 @@
         const fileData = await resp.json();
         if (!fileData.content) return null;
         const content = decodeURIComponent(escape(atob(fileData.content.replace(/\n/g, ''))));
-        const meta = JSON.parse(content);
-        if (!Array.isArray(meta)) return null;
-        // 返回元数据：有 filename 的照片异步加载，无 filename 的保留 src
-        return meta.map(m => ({
+        const parsed = JSON.parse(content);
+
+        // 兼容两种格式：
+        // 新格式: { initialized: true, photos: [...] }
+        // 旧格式: [...] (纯数组)
+        let meta;
+        let initialized;
+        if (Array.isArray(parsed)) {
+          // 旧格式：纯数组，视为未初始化
+          meta = parsed;
+          initialized = false;
+        } else if (parsed && Array.isArray(parsed.photos)) {
+          // 新格式：对象
+          meta = parsed.photos;
+          initialized = !!parsed.initialized;
+        } else {
+          return null;
+        }
+
+        // 返回带 initialized 标记的结果
+        const result = meta.map(m => ({
           src: m.src || '',
           caption: m.caption || '美好瞬间',
           filename: m.filename || '',
           loading: !!m.filename
         }));
+        result.initialized = initialized;
+        return result;
       } catch (e) {
         return null;
       }
@@ -2899,7 +2918,9 @@
           caption: p.caption || '美好瞬间',
           src: p.filename ? '' : (p.src || '')
         }));
-        const content = utf8ToBase64(JSON.stringify(meta, null, 2));
+        // 使用对象格式存储，initialized 标记用户已操作过（区分"从未使用"和"删光照片"）
+        const dataObj = { initialized: true, photos: meta };
+        const content = utf8ToBase64(JSON.stringify(dataObj, null, 2));
 
         // 获取当前文件的 SHA（如果存在）
         let sha = null;
@@ -2957,11 +2978,14 @@
       // 从 GitHub 加载最新数据（已加防缓存）
       const cloudPhotos = await loadCloudPhotos();
       if (cloudPhotos !== null) {
-        // 云端数据可用（即使为空数组也代表用户真实状态）
+        // 云端数据可用
         if (cloudPhotos.length > 0) {
           photos = cloudPhotos;
+        } else if (cloudPhotos.initialized) {
+          // 云端为空且 initialized=true：用户已删光所有照片，保持空状态
+          photos = [];
         } else {
-          // 云端为空 = 用户还没有照片，使用默认示例
+          // 云端为空且 initialized=false：用户从未操作过，使用默认示例
           photos = defaultPhotos.map(p => ({ ...p }));
         }
       } else {
