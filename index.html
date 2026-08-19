@@ -57,14 +57,15 @@
         radial-gradient(ellipse at 50% 70%, rgba(240, 224, 192, 0.20) 0%, transparent 55%),
         linear-gradient(180deg, #FDF9F3 0%, #F7F1E8 40%, #F5EDE0 100%);
     }
-    .bg-blob {
-      position: fixed; border-radius: 50%; filter: blur(60px); z-index: 0; pointer-events: none;
+    /* 背景柔光：用径向渐变替代 blur(60px) 动画球体，零 GPU 开销 */
+    .bg-glow {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 0; pointer-events: none;
+      background:
+        radial-gradient(circle at 8% 5%, rgba(232, 197, 192, 0.35), transparent 22%),
+        radial-gradient(circle at 92% 25%, rgba(197, 213, 224, 0.30), transparent 22%),
+        radial-gradient(circle at 55% 55%, rgba(240, 224, 192, 0.30), transparent 28%);
     }
-    .blob-1 { width: 350px; height: 350px; background: rgba(232, 197, 192, 0.35); top: -80px; left: -60px; animation: blobFloat1 20s ease-in-out infinite; }
-    .blob-2 { width: 280px; height: 280px; background: rgba(197, 213, 224, 0.30); bottom: 10%; right: -60px; animation: blobFloat2 25s ease-in-out infinite; }
-    .blob-3 { width: 220px; height: 220px; background: rgba(240, 224, 192, 0.35); top: 45%; left: 55%; animation: blobFloat1 30s ease-in-out infinite reverse; }
-    @keyframes blobFloat1 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(50px, 30px) scale(1.05); } }
-    @keyframes blobFloat2 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-40px, -20px) scale(0.95); } }
+    .bg-blob { display: none; }
 
     #particle-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
 
@@ -197,7 +198,8 @@
     .photo-item {
       break-inside: avoid; margin-bottom: 0.8rem; position: relative; border-radius: var(--radius); overflow: hidden;
       cursor: pointer; box-shadow: var(--shadow); border: 3px solid var(--white);
-      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1); opacity: 0; transform: translateY(25px);
+      transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.4s ease;
+      opacity: 0; transform: translateY(25px); will-change: opacity, transform;
     }
     .photo-item.visible { opacity: 1; transform: translateY(0); }
     .photo-item:hover { transform: translateY(-4px) scale(1.02); box-shadow: var(--shadow-h); border-color: var(--pink); }
@@ -206,7 +208,7 @@
     .photo-overlay {
       position: absolute; bottom: 0; left: 0; right: 0; padding: 1.5rem 1rem 0.6rem;
       background: linear-gradient(to top, rgba(247, 241, 232, 0.95), transparent);
-      color: var(--brown-d); font-size: 0.85rem; opacity: 0; transform: translateY(8px); transition: all 0.4s ease;
+      color: var(--brown-d); font-size: 0.85rem; opacity: 0; transform: translateY(8px); transition: opacity 0.4s ease, transform 0.4s ease;
     }
     .photo-item:hover .photo-overlay { opacity: 1; transform: translateY(0); }
     .photo-overlay .photo-date { display: none; }
@@ -214,13 +216,13 @@
     /* ====== 灯箱 ====== */
     .lightbox {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(139, 115, 85, 0.55);
-      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 1000;
-      display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: all 0.4s ease; padding: 2rem;
+      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 1000;
+      display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 0.4s ease, visibility 0.4s ease; padding: 2rem;
     }
     .lightbox.active { opacity: 1; visibility: visible; }
     .lightbox img {
       max-width: 90%; max-height: 80vh; border-radius: var(--radius); border: 6px solid var(--white);
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2); transform: scale(0.9);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2); transform: scale(0.9); will-change: transform;
       transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
     }
     .lightbox.active img { transform: scale(1); }
@@ -235,14 +237,14 @@
     /* ====== 上传弹窗 ====== */
     .upload-modal {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(139, 115, 85, 0.4);
-      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 1150;
-      display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: all 0.35s ease; padding: 1.5rem;
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1150;
+      display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 0.35s ease, visibility 0.35s ease; padding: 1.5rem;
     }
     .upload-modal.active { opacity: 1; visibility: visible; }
     .upload-modal-content {
       background: var(--cream2); border: 2px solid var(--beige); border-radius: var(--radius);
       padding: 2rem; max-width: 440px; width: 100%; max-height: 90vh; overflow-y: auto;
-      transform: scale(0.92); transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      transform: scale(0.92); will-change: transform; transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .upload-modal.active .upload-modal-content { transform: scale(1); }
     .upload-modal h3 { font-family: 'ZCOOL KuaiLe', 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', sans-serif; font-size: 1.3rem; color: var(--brown-d); text-align: center; margin-bottom: 1.5rem; }
@@ -287,14 +289,14 @@
     /* ====== 管理弹窗 ====== */
     .manage-modal {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(139, 115, 85, 0.4);
-      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 1100;
-      display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: all 0.35s ease; padding: 1.5rem;
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1100;
+      display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 0.35s ease, visibility 0.35s ease; padding: 1.5rem;
     }
     .manage-modal.active { opacity: 1; visibility: visible; }
     .manage-modal-content {
       background: var(--cream2); border: 2px solid var(--beige); border-radius: var(--radius);
       padding: 1.5rem; max-width: 800px; width: 100%; max-height: 90vh; overflow-y: auto;
-      transform: scale(0.92); transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      transform: scale(0.92); will-change: transform; transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .manage-modal.active .manage-modal-content { transform: scale(1); }
     .manage-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; padding-bottom: 0.8rem; border-bottom: 2px solid var(--beige); }
@@ -401,13 +403,13 @@
     /* ====== 编辑弹窗 ====== */
     .edit-modal {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(139, 115, 85, 0.4);
-      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 1200;
-      display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: all 0.35s ease; padding: 1.5rem;
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1200;
+      display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 0.35s ease, visibility 0.35s ease; padding: 1.5rem;
     }
     .edit-modal.active { opacity: 1; visibility: visible; }
     .edit-modal-content {
       background: var(--cream2); border: 2px solid var(--beige); border-radius: var(--radius);
-      padding: 1.8rem; max-width: 400px; width: 100%; transform: scale(0.92); transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+      padding: 1.8rem; max-width: 400px; width: 100%; transform: scale(0.92); will-change: transform; transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     }
     .edit-modal.active .edit-modal-content { transform: scale(1); }
     .edit-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.2rem; }
@@ -420,14 +422,14 @@
     /* ====== 确认删除弹窗 ====== */
     .confirm-modal {
       position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(139, 115, 85, 0.4);
-      backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 1250;
-      display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: all 0.35s ease; padding: 1.5rem;
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); z-index: 1250;
+      display: flex; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 0.35s ease, visibility 0.35s ease; padding: 1.5rem;
     }
     .confirm-modal.active { opacity: 1; visibility: visible; }
     .confirm-modal-content {
       background: var(--cream2); border: 2px solid var(--beige); border-radius: var(--radius);
       padding: 2.2rem 2rem 1.8rem; max-width: 360px; width: 100%; text-align: center;
-      transform: scale(0.88); transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transform: scale(0.88); will-change: transform; transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
     .confirm-modal.active .confirm-modal-content { transform: scale(1); }
     .confirm-icon { display: flex; justify-content: center; margin-bottom: 1rem; }
@@ -2710,11 +2712,13 @@
       galleryView.classList.remove('active');
       homeView.classList.add('active');
       window.scrollTo(0, 0);
+      if (typeof checkParticleVisibility === 'function') checkParticleVisibility();
     }
     function showGallery() {
       homeView.classList.remove('active');
       galleryView.classList.add('active');
       window.scrollTo(0, 0);
+      if (typeof checkParticleVisibility === 'function') checkParticleVisibility();
       // 重新触发照片墙入场动画
       setTimeout(() => {
         document.querySelectorAll('.photo-item').forEach(item => {
@@ -3055,6 +3059,8 @@
 
     function renderPhotoWall() {
       photoWall.innerHTML = '';
+      const fragment = document.createDocumentFragment();
+      const items = [];
       photos.forEach((photo, index) => {
         const item = document.createElement('div');
         item.className = 'photo-item';
@@ -3065,14 +3071,24 @@
             <div>${photo.caption}</div>
           </div>
         `;
-        item.addEventListener('click', () => openLightbox(index));
-        photoWall.appendChild(item);
-        scrollObserver.observe(item);
+        fragment.appendChild(item);
+        items.push(item);
       });
+      photoWall.appendChild(fragment);
+      // 批量注册 observer，避免逐个 append + observe 的布局抖动
+      items.forEach(item => scrollObserver.observe(item));
       updateStats();
     }
 
     renderPhotoWall();
+
+    // 事件委托：单次监听代替每张照片各自绑定 click
+    photoWall.addEventListener('click', (e) => {
+      const item = e.target.closest('.photo-item');
+      if (item && photoWall.contains(item)) {
+        openLightbox(parseInt(item.dataset.index, 10));
+      }
+    });
 
     // ============================================
     //  灯箱
@@ -3755,14 +3771,20 @@
     });
 
     // ============================================
-    //  柔和粒子系统
+    //  柔和粒子系统（优化版：可见性感知 + 减少数量 + 避免开方）
     // ============================================
     const canvas = document.getElementById('particle-canvas');
     const ctx = canvas.getContext('2d');
     let W, H;
+
+    // resize 防抖
+    let resizeTimer;
     function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
     resize();
-    window.addEventListener('resize', resize);
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(resize, 150);
+    });
 
     const particleColors = [
       'rgba(232, 197, 192, 0.6)', 'rgba(197, 213, 224, 0.5)',
@@ -3819,29 +3841,59 @@
       }
     }
 
-    const particleCount = window.innerWidth < 768 ? 25 : 45;
+    // 减少粒子数量：移动端 15，桌面端 30
+    const particleCount = window.innerWidth < 768 ? 15 : 30;
     const particles = [];
     for (let i = 0; i < particleCount; i++) particles.push(new Particle());
 
+    // 鼠标交互：rAF 节流，避免高频 mousemove 触发
     let mouseX = -1000, mouseY = -1000;
-    window.addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; });
+    let mouseDirty = false;
+    let mouseRafQueued = false;
+    window.addEventListener('mousemove', (e) => {
+      mouseX = e.clientX; mouseY = e.clientY;
+      if (!mouseRafQueued) {
+        mouseRafQueued = true;
+        requestAnimationFrame(() => { mouseRafQueued = false; });
+      }
+    });
     window.addEventListener('mouseleave', () => { mouseX = -1000; mouseY = -1000; });
+
+    // 可见性感知：仅在首页且文档可见时运行
+    let particlesRunning = true;
+    function checkParticleVisibility() {
+      const shouldRun = homeView.classList.contains('active') && !document.hidden;
+      if (shouldRun && !particlesRunning) {
+        particlesRunning = true;
+        requestAnimationFrame(animateParticles);
+      } else if (!shouldRun) {
+        particlesRunning = false;
+      }
+    }
+    document.addEventListener('visibilitychange', checkParticleVisibility);
+
+    // 鼠标交互半径平方（避免每帧开方）
+    const INTERACT_RADIUS = 100;
+    const INTERACT_RADIUS_SQ = INTERACT_RADIUS * INTERACT_RADIUS;
 
     let frameTime = 0;
     function animateParticles() {
+      if (!particlesRunning) return;
       ctx.clearRect(0, 0, W, H);
       frameTime += 0.016;
-      particles.forEach(p => {
+      for (let i = 0, len = particles.length; i < len; i++) {
+        const p = particles[i];
         const dx = p.x - mouseX, dy = p.y - mouseY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 100) {
-          const force = (100 - dist) / 100;
+        const distSq = dx * dx + dy * dy;
+        if (distSq < INTERACT_RADIUS_SQ) {
+          const dist = Math.sqrt(distSq);
+          const force = (INTERACT_RADIUS - dist) / INTERACT_RADIUS;
           p.x += (dx / dist) * force * 2;
           p.y += (dy / dist) * force * 2;
         }
         p.update(frameTime);
         p.draw();
-      });
+      }
       requestAnimationFrame(animateParticles);
     }
     animateParticles();
