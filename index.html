@@ -2803,6 +2803,8 @@
     function unlockSite() {
       lockScreen.classList.add('hidden');
       sessionStorage.setItem(SESSION_KEY, '1');
+      // 解锁后自动播放音乐（延迟等播放器初始化完成）
+      setTimeout(() => { if (typeof mpPlay === 'function') mpPlay(); }, 300);
     }
 
     function tryUnlock() {
@@ -2823,6 +2825,8 @@
     // 自动解锁（同一浏览器会话内）
     if (sessionStorage.getItem(SESSION_KEY) === '1') {
       lockScreen.classList.add('hidden');
+      // 已解锁时也自动播放音乐
+      setTimeout(() => { if (typeof mpPlay === 'function') mpPlay(); }, 300);
     }
 
     // ============================================
