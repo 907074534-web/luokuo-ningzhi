@@ -604,7 +604,6 @@
     .mp-progress-fill {
       height: 100%; background: var(--pink-d);
       border-radius: 2px; width: 0%;
-      transition: width 0.3s linear;
     }
 
     @media (max-width: 480px) {
@@ -2788,7 +2787,7 @@
       </button>
     </div>
   </div>
-  <audio id="mpAudio" preload="auto"></audio>
+  <audio id="mpAudio" preload="auto" loop></audio>
 
   <script>
     // ============================================
@@ -3929,10 +3928,6 @@
     }
 
     function mpPlay() {
-      // 如果上次播放被拦截或出错，先 load 重置音频元素
-      if (mpAudio.error || mpAudio.readyState === 0) {
-        mpAudio.load();
-      }
       mpAudio.play().then(() => {
         mpIsPlaying = true;
         mpPlayer.classList.add('playing');
@@ -3988,18 +3983,22 @@
       mpAudio.currentTime = ratio * mpAudio.duration;
     });
 
-    // 播放进度更新
-    mpAudio.addEventListener('timeupdate', () => {
+    // 播放进度更新（使用 rAF 平滑更新，避免 timeupdate 抖动）
+    let mpRafId = null;
+    function mpUpdateProgress() {
       if (mpAudio.duration) {
         mpProgressFill.style.width = (mpAudio.currentTime / mpAudio.duration * 100) + '%';
       }
+      if (mpIsPlaying) {
+        mpRafId = requestAnimationFrame(mpUpdateProgress);
+      }
+    }
+    mpAudio.addEventListener('play', () => {
+      if (mpRafId) cancelAnimationFrame(mpRafId);
+      mpRafId = requestAnimationFrame(mpUpdateProgress);
     });
-
-    // 播放结束自动循环
-    mpAudio.addEventListener('ended', () => {
-      mpAudio.currentTime = 0;
-      mpAudio.load();
-      mpPlay();
+    mpAudio.addEventListener('pause', () => {
+      if (mpRafId) { cancelAnimationFrame(mpRafId); mpRafId = null; }
     });
 
     // 初始化第一首
