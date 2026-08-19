@@ -3934,12 +3934,11 @@
     }
 
     function mpPlay() {
-      // 直接调用 play()，必须在用户手势链内同步调用
-      // 浏览器会自动缓冲并在数据就绪后开始播放
+      // 先设置状态，确保 play 事件触发 rAF 循环时 mpIsPlaying 已为 true
+      mpIsPlaying = true;
       const playPromise = mpAudio.play();
       if (playPromise !== undefined) {
         playPromise.then(() => {
-          mpIsPlaying = true;
           mpPlayer.classList.add('playing');
           mpToggleIcon.innerHTML = ICON_PAUSE;
         }).catch(() => {
