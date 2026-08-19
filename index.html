@@ -3991,22 +3991,16 @@
       mpAudio.currentTime = ratio * mpAudio.duration;
     });
 
-    // 播放进度更新（使用 rAF 平滑更新，避免 timeupdate 抖动）
-    let mpRafId = null;
-    function mpUpdateProgress() {
-      if (mpAudio.duration) {
-        mpProgressFill.style.width = (mpAudio.currentTime / mpAudio.duration * 100) + '%';
+    // 播放进度更新（使用 timeupdate 事件，避免 rAF 每帧写 DOM 导致布局抖动）
+    let mpLastPct = -1;
+    mpAudio.addEventListener('timeupdate', () => {
+      if (!mpAudio.duration) return;
+      const pct = Math.floor(mpAudio.currentTime / mpAudio.duration * 100);
+      // 仅在整数值变化时更新 DOM，减少布局重排
+      if (pct !== mpLastPct) {
+        mpProgressFill.style.width = pct + '%';
+        mpLastPct = pct;
       }
-      if (mpIsPlaying) {
-        mpRafId = requestAnimationFrame(mpUpdateProgress);
-      }
-    }
-    mpAudio.addEventListener('play', () => {
-      if (mpRafId) cancelAnimationFrame(mpRafId);
-      mpRafId = requestAnimationFrame(mpUpdateProgress);
-    });
-    mpAudio.addEventListener('pause', () => {
-      if (mpRafId) { cancelAnimationFrame(mpRafId); mpRafId = null; }
     });
 
     // 初始化第一首
