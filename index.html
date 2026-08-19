@@ -2537,7 +2537,7 @@
   <div class="bg-blob blob-1"></div>
   <div class="bg-blob blob-2"></div>
   <div class="bg-blob blob-3"></div>
-  <canvas id="particle-canvas" width="810" height="711"></canvas>
+  <canvas id="particle-canvas" width="810" height="711" style="display:none"></canvas>
 
   <!-- ============== 首页视图 ============== -->
   <div class="view active" id="homeView">
@@ -4007,146 +4007,8 @@
     mpLoadTrack(0);
 
     // ============================================
-    //  柔和粒子系统（优化版：可见性感知 + 减少数量 + 避免开方）
+    //  粒子系统已移除（降低 CPU 负载，保证音频流畅）
     // ============================================
-    const canvas = document.getElementById('particle-canvas');
-    const ctx = canvas.getContext('2d');
-    let W, H;
-
-    // resize 防抖
-    let resizeTimer;
-    function resize() { W = canvas.width = window.innerWidth; H = canvas.height = window.innerHeight; }
-    resize();
-    window.addEventListener('resize', () => {
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(resize, 150);
-    });
-
-    const particleColors = [
-      'rgba(232, 197, 192, 0.6)', 'rgba(197, 213, 224, 0.5)',
-      'rgba(240, 224, 192, 0.5)', 'rgba(197, 216, 192, 0.45)',
-      'rgba(212, 165, 160, 0.4)', 'rgba(184, 167, 142, 0.35)',
-    ];
-
-    // 减少粒子数量：移动端 10，桌面端 20
-    const particleCount = window.innerWidth < 768 ? 10 : 20;
-
-    // 预渲染粒子精灵到离屏 canvas（避免每帧重复绘制贝塞尔曲线）
-    function createSprite(color, size, isHeart) {
-      const pad = 4;
-      const cv = document.createElement('canvas');
-      cv.width = cv.height = size + pad * 2;
-      const c = cv.getContext('2d');
-      c.translate(cv.width / 2, cv.height / 2);
-      c.fillStyle = color;
-      if (isHeart) {
-        const s = size * 0.5;
-        c.beginPath();
-        c.moveTo(0, s * 0.3);
-        c.bezierCurveTo(0, 0, -s, 0, -s, s * 0.3);
-        c.bezierCurveTo(-s, s * 0.6, 0, s * 0.8, 0, s);
-        c.bezierCurveTo(0, s * 0.8, s, s * 0.6, s, s * 0.3);
-        c.bezierCurveTo(s, 0, 0, 0, 0, s * 0.3);
-        c.fill();
-      } else {
-        c.beginPath();
-        c.arc(0, 0, size * 0.4, 0, Math.PI * 2);
-        c.fill();
-      }
-      return cv;
-    }
-
-    class Particle {
-      constructor() { this.reset(true); }
-      reset(initial = false) {
-        this.x = Math.random() * W;
-        this.y = initial ? Math.random() * H : -20;
-        this.size = Math.random() * 8 + 3;
-        this.speedY = Math.random() * 0.8 + 0.2;
-        this.speedX = (Math.random() - 0.5) * 0.4;
-        this.angle = Math.random() * Math.PI * 2;
-        this.angleSpeed = (Math.random() - 0.5) * 0.02;
-        this.swing = Math.random() * 1.5 + 0.3;
-        this.swingSpeed = Math.random() * 0.015 + 0.008;
-        this.swingOffset = Math.random() * Math.PI * 2;
-        const colorIdx = Math.floor(Math.random() * particleColors.length);
-        this.color = particleColors[colorIdx];
-        this.opacity = Math.random() * 0.4 + 0.3;
-        this.isHeart = Math.random() < 0.3;
-        this.sprite = createSprite(this.color, this.size, this.isHeart);
-      }
-      update(time) {
-        this.y += this.speedY;
-        this.x += this.speedX + Math.sin(time * this.swingSpeed + this.swingOffset) * this.swing * 0.2;
-        this.angle += this.angleSpeed;
-        if (this.y > H + 20) this.reset();
-        if (this.x < -20) this.x = W + 20;
-        if (this.x > W + 20) this.x = -20;
-      }
-      draw() {
-        ctx.save();
-        ctx.globalAlpha = this.opacity;
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle);
-        ctx.drawImage(this.sprite, -this.sprite.width / 2, -this.sprite.height / 2);
-        ctx.restore();
-      }
-    }
-
-    const particles = [];
-    for (let i = 0; i < particleCount; i++) particles.push(new Particle());
-
-    // 鼠标交互：直接更新坐标，rAF 循环中读取
-    let mouseX = -1000, mouseY = -1000;
-    window.addEventListener('mousemove', (e) => {
-      mouseX = e.clientX; mouseY = e.clientY;
-    });
-    window.addEventListener('mouseleave', () => { mouseX = -1000; mouseY = -1000; });
-
-    // 可见性感知：仅在首页且文档可见时运行
-    let particlesRunning = true;
-    function checkParticleVisibility() {
-      const shouldRun = homeView.classList.contains('active') && !document.hidden;
-      if (shouldRun && !particlesRunning) {
-        particlesRunning = true;
-        requestAnimationFrame(animateParticles);
-      } else if (!shouldRun) {
-        particlesRunning = false;
-      }
-    }
-    document.addEventListener('visibilitychange', checkParticleVisibility);
-
-    // 鼠标交互半径平方（避免每帧开方）
-    const INTERACT_RADIUS = 100;
-    const INTERACT_RADIUS_SQ = INTERACT_RADIUS * INTERACT_RADIUS;
-
-    // 降帧到 ~30fps，减少主线程 CPU 占用，避免音频卡顿
-    let frameTime = 0;
-    let lastParticleFrame = 0;
-    function animateParticles(timestamp) {
-      if (!particlesRunning) return;
-      // 每 2 帧渲染一次（~30fps）
-      if (timestamp - lastParticleFrame >= 33) {
-        lastParticleFrame = timestamp;
-        ctx.clearRect(0, 0, W, H);
-        frameTime += 0.033;
-        for (let i = 0, len = particles.length; i < len; i++) {
-          const p = particles[i];
-          const dx = p.x - mouseX, dy = p.y - mouseY;
-          const distSq = dx * dx + dy * dy;
-          if (distSq < INTERACT_RADIUS_SQ) {
-            const dist = Math.sqrt(distSq);
-            const force = (INTERACT_RADIUS - dist) / INTERACT_RADIUS;
-            p.x += (dx / dist) * force * 2;
-            p.y += (dy / dist) * force * 2;
-          }
-          p.update(frameTime);
-          p.draw();
-        }
-      }
-      requestAnimationFrame(animateParticles);
-    }
-    animateParticles(0);
   </script>
 
 
