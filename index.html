@@ -2787,7 +2787,10 @@
       </button>
     </div>
   </div>
-  <audio id="mpAudio" preload="auto" loop></audio>
+  <audio id="mpAudio" preload="auto" loop>
+    <source src="assets/love-frequency.mp3" type="audio/mpeg">
+    <source src="assets/love-frequency.m4a" type="audio/mp4">
+  </audio>
 
   <script>
     // ============================================
@@ -3926,32 +3929,25 @@
     function mpLoadTrack(idx) {
       mpIndex = (idx + playlist.length) % playlist.length;
       const track = playlist[mpIndex];
-      mpAudio.src = track.url;
       mpTrackName.textContent = track.name;
       mpProgressFill.style.width = '0%';
     }
 
     function mpPlay() {
-      // 等待音频可播放后再调用 play()
-      const tryStart = () => {
-        mpAudio.play().then(() => {
+      // 直接调用 play()，必须在用户手势链内同步调用
+      // 浏览器会自动缓冲并在数据就绪后开始播放
+      const playPromise = mpAudio.play();
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
           mpIsPlaying = true;
           mpPlayer.classList.add('playing');
           mpToggleIcon.innerHTML = ICON_PAUSE;
         }).catch(() => {
+          // 自动播放被浏览器拦截
           mpIsPlaying = false;
           mpPlayer.classList.remove('playing');
           mpToggleIcon.innerHTML = ICON_PLAY;
         });
-      };
-      // readyState >= 2 (HAVE_CURRENT_DATA) 说明已有数据可播
-      if (mpAudio.readyState >= 2) {
-        tryStart();
-      } else {
-        // 等待数据就绪
-        mpAudio.addEventListener('canplay', tryStart, { once: true });
-        // 如果 src 未设置，先加载
-        if (!mpAudio.src) mpLoadTrack(mpIndex);
       }
     }
 
@@ -3963,7 +3959,6 @@
     }
 
     function mpToggle() {
-      if (!mpAudio.src) mpLoadTrack(mpIndex);
       if (mpIsPlaying) {
         mpPause();
       } else {
